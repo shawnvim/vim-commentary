@@ -10,12 +10,23 @@ let g:loaded_commentary = 1
 
 function! s:surroundings() abort
   return split(get(b:, 'commentary_format', substitute(substitute(substitute(
-        \ &commentstring, '^$', '%s', ''), '\S\zs%s','%s', '') ,'%s\ze\S', '%s', '')), '%s', 1)
+        \ &commentstring, '^$', '%s', ''), '\S\zs%s',' %s', '') ,'%s\ze\S', '%s ', '')), '%s', 1)
 endfunction
 
-function! s:strip_white_space(l,r,line) abort
+function! s:strip_white_space_go(l,r,line) abort
   let [l, r] = [a:l, a:r]
-  if l[-1:] ==# ' ' && stridx(a:line,l) == -1 && stridx(a:line,l[0:-2]) == 0
+  if l[-1:] ==# ' ' && (stridx(a:line,l) == 0 || stridx(a:line,l[:-2]) == 0)
+    let l = l[:-2]
+  endif
+  if r[0] ==# ' ' && a:line[1-strlen(r):] == r[1:]
+    let r = r[1:]
+  endif
+  return [l, r]
+endfunction
+
+function! s:strip_white_space_gone(l,r,line) abort
+  let [l, r] = [a:l, a:r]
+  if l[-1:] ==# ' ' && stridx(a:line,l) != 0  && stridx(a:line,l[:-2]) == 0
     let l = l[:-2]
   endif
   if r[0] ==# ' ' && a:line[-strlen(r):] != r && a:line[1-strlen(r):] == r[1:]
@@ -39,7 +50,7 @@ function! s:go(...) abort
   let force_uncomment = a:0 > 2 && a:3
   for lnum in range(lnum1,lnum2)
     let line = matchstr(getline(lnum),'\S.*\s\@<!')
-    let [l, r] = s:strip_white_space(l,r,line)
+    let [l, r] = s:strip_white_space_go(l,r,line)
     if len(line) && (stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
       let uncomment = 0
     endif
@@ -66,7 +77,7 @@ function! s:go(...) abort
     elseif uncomment
       let line = substitute(line,'^\%('.matchstr(getline(lnum1),indent).'\|\s*\)\zs.*\S\@<=','\=l.submatch(0).r','')
     else
-      let line = substitute(line,'^\%('.matchstr(getline(lnum1),indent).'\|\s*\)\zs.*\S\@<=','\=l." ".submatch(0)." ".r','')
+      let line = substitute(line,'^\%('.matchstr(getline(lnum1),indent).'\|\s*\)\zs.*\S\@<=','\=l.submatch(0).r','')
     endif
     call add(lines, line)
   endfor
@@ -96,7 +107,7 @@ function! s:gone(...) abort
   let force_uncomment = a:0 > 2 && a:3
   for lnum in range(lnum1,lnum2)
     let line = matchstr(getline(lnum),'\S.*\s\@<!')
-    let [l, r] = s:strip_white_space(l,r,line)
+    let [l, r] = s:strip_white_space_gone(l,r,line)
     if len(line) && (stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
       let uncomment = 0
     endif
@@ -122,8 +133,9 @@ function! s:gone(...) abort
       endif
     elseif uncomment
       let line = substitute(line,'\S.*\s\@<!','\=submatch(0)[strlen(l):-strlen(r)-1]','')
+
     else
-      let line = line[1:]
+      
     endif
     call add(lines, line)
   endfor
@@ -138,26 +150,6 @@ function! s:gone(...) abort
   return ''
 endfunction
 
-function! s:textobject(inner) abort
-  let [l, r] = s:surroundings()
-  let lnums = [line('.')+1, line('.')-2]
-  for [index, dir, bound, line] in [[0, -1, 1, ''], [1, 1, line('$'), '']]
-    while lnums[index] != bound && line ==# '' || !(stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
-      let lnums[index] += dir
-      let line = matchstr(getline(lnums[index]+dir),'\S.*\s\@<!')
-      let [l, r] = s:strip_white_space(l,r,line)
-    endwhile
-  endfor
-  while (a:inner || lnums[1] != line('$')) && empty(getline(lnums[0]))
-    let lnums[0] += 1
-  endwhile
-  while a:inner && empty(getline(lnums[1]))
-    let lnums[1] -= 1
-  endwhile
-  if lnums[0] <= lnums[1]
-    execute 'normal! 'lnums[0].'GV'.lnums[1].'G'
-  endif
-endfunction
 
 " command! -range -bar -bang Commentary call s:go(<line1>,<line2>,<bang>0)
 xnoremap <expr>   <Plug>Commentary     <SID>go()
@@ -169,15 +161,10 @@ nnoremap <expr>   <Plug>UnCommentary     <SID>gone()
 nnoremap <expr>   <Plug>CommentaryLine <SID>go() . '_'
 nnoremap <expr>   <Plug>UnCommentaryLine <SID>gone() . '_'
 
-onoremap <silent> <Plug>Commentary        :<C-U>call <SID>textobject(get(v:, 'operator', '') ==# 'c')<CR>
-nnoremap <silent> <Plug>ChangeCommentary c:<C-U>call <SID>textobject(1)<CR>
-nmap <silent> <Plug>CommentaryUndo :echoerr "Change your <Plug>CommentaryUndo map to <Plug>Commentary<Plug>Commentary"<CR>
 
 if !hasmapto('<Plug>Commentary') || maparg('gc','n') ==# ''
-  xmap <F8>  <Plug>Commentary gv
-  xmap <F9>  <Plug>UnCommentary gv
-"   nmap gc  <Plug>Commentary
-"   omap gc  <Plug>Commentary
+  xmap <F8> <Plug>Commentary gv
+  xmap <F9> <Plug>UnCommentary gv
   nmap <F8> <Plug>CommentaryLine
   nmap <F9> <Plug>UnCommentaryLine
 endif
