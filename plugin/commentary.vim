@@ -45,12 +45,12 @@ function! s:go(...) abort
     let [lnum1, lnum2] = [line("'["), line("']")]
   endif
 
-  let [l, r] = s:surroundings()
+  let [lo, ro] = s:surroundings()
   let uncomment = 2
   let force_uncomment = a:0 > 2 && a:3
   for lnum in range(lnum1,lnum2)
     let line = matchstr(getline(lnum),'\S.*\s\@<!')
-    let [l, r] = s:strip_white_space_go(l,r,line)
+    let [l, r] = s:strip_white_space_go(lo,ro,line)
     if len(line) && (stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
       let uncomment = 0
     endif
@@ -65,6 +65,7 @@ function! s:go(...) abort
   let lines = []
   for lnum in range(lnum1,lnum2)
     let line = getline(lnum)
+    let [l, r] = s:strip_white_space_go(lo,ro,matchstr(line,'\S.*\s\@<!'))
     if strlen(r) > 2 && l.r !~# '\\'
       let line = substitute(line,
             \'\M' . substitute(l, '\ze\S\s*$', '\\zs\\d\\*\\ze', '') . '\|' . substitute(r, '\S\zs', '\\zs\\d\\*\\ze', ''),
@@ -102,12 +103,11 @@ function! s:gone(...) abort
     let [lnum1, lnum2] = [line("'["), line("']")]
   endif
 
-  let [l, r] = s:surroundings()
-  let uncomment = 2
+  let [lo, ro] = s:surroundings()
   let force_uncomment = a:0 > 2 && a:3
   for lnum in range(lnum1,lnum2)
     let line = matchstr(getline(lnum),'\S.*\s\@<!')
-    let [l, r] = s:strip_white_space_gone(l,r,line)
+    let [l, r] = s:strip_white_space_gone(lo,ro,line)
     if len(line) && (stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
       let uncomment = 0
     endif
@@ -121,7 +121,13 @@ function! s:gone(...) abort
 
   let lines = []
   for lnum in range(lnum1,lnum2)
+    let uncomment = 2
     let line = getline(lnum)
+    let cleanline = matchstr(line,'\S.*\s\@<!')
+    let [l, r] = s:strip_white_space_gone(lo,ro, cleanline)
+    if len(cleanline) && (stridx(cleanline,l) || cleanline[strlen(cleanline)-strlen(r) : -1] != r)
+      let uncomment = 0
+    endif
     if strlen(r) > 2 && l.r !~# '\\'
       let line = substitute(line,
             \'\M' . substitute(l, '\ze\S\s*$', '\\zs\\d\\*\\ze', '') . '\|' . substitute(r, '\S\zs', '\\zs\\d\\*\\ze', ''),
@@ -135,7 +141,7 @@ function! s:gone(...) abort
       let line = substitute(line,'\S.*\s\@<!','\=submatch(0)[strlen(l):-strlen(r)-1]','')
 
     else
-      
+
     endif
     call add(lines, line)
   endfor
